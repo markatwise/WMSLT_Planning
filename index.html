@@ -365,7 +365,7 @@ function renderGantt() {
           +'<div class="priority-num">'+p.tp+'</div><div class="status-dot" style="background:'+STATUS_COLORS[p.status]+';"></div>'
           +'<span class="proj-name" title="'+p.name+'">'+p.name+'</span></div>'
           +'<div class="gantt-bars" style="height:34px;"><div class="gantt-grid">'+gc()+'</div>'
-          +'<div class="gantt-bar-wrap" style="left:'+l+'%;width:'+w+'%;background:'+barColor(team,p.status)+';" onclick="openModal('+p.id+')">''
+          +'<div class="gantt-bar-wrap" style="left:'+l+'%;width:'+w+'%;background:'+barColor(team,p.status)+';" onclick="openModal('+p.id+')">'
           +'<div class="gantt-bar-inner"><span class="gantt-bar-label">'+p.name+'</span></div></div></div></div>';
       });
     });
