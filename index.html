@@ -258,15 +258,17 @@ async function loadProjects() {
   }
 }
 
-async function upsertProject(p) {
-  await sb('POST', TABLE + '?on_conflict=id', toRow(p));
+async function insertProject(p) {
+  await sb('POST', TABLE, toRow(p));
+}
+async function patchProject(p) {
+  await sb('PATCH', TABLE + '?id=eq.' + p.id, toRow(p));
 }
 async function upsertMany(ps) {
   if (!ps.length) return;
-  // dedupe by id
   const map = new Map();
   ps.forEach(p => map.set(p.id, p));
-  await sb('POST', TABLE + '?on_conflict=id', [...map.values()].map(toRow));
+  await Promise.all([...map.values()].map(p => sb('PATCH', TABLE + '?id=eq.' + p.id, toRow(p))));
 }
 async function deleteProject(id) {
   await sb('DELETE', TABLE + '?id=eq.' + id);
@@ -497,12 +499,12 @@ async function saveProject() {
     if (editingId) {
       const p=projects.find(x=>x.id===editingId);
       Object.assign(p,{name,team,status,start,end});
-      await upsertProject(p);
+      await patchProject(p);
     } else {
       const mx=Math.max(0,...projects.filter(p=>p.team===team).map(p=>p.tp));
       const np={id:nextId++,name,team,status,start,end,tp:mx+1,showOrg:false,op:null};
       projects.push(np);
-      await upsertProject(np);
+      await insertProject(np);
     }
     showToast('Saved'); closeModal(); render();
   } catch(err) {
