@@ -144,8 +144,10 @@
       <button class="view-tab active" onclick="setView('gantt')">Gantt</button>
       <button class="view-tab" onclick="setView('team')">Team priority</button>
       <button class="view-tab" onclick="setView('org')">WMS priority</button>
+      <button class="view-tab" onclick="setView('capacity')">Capacity</button>
     </div>
     <div class="spacer"></div>
+    <span id="last-updated" style="font-size:11px;color:var(--text-tertiary);margin-right:10px;"></span>
     <span id="project-count" style="font-size:11px;color:var(--text-tertiary);"></span>
   </div>
 
@@ -176,6 +178,7 @@
         <option value="done">Done</option>
       </select>
     </div>
+    <div class="field"><label>Owner</label><input type="text" id="f-owner" placeholder="e.g. Jane Smith"></div>
     <div class="modal-row">
       <div class="field"><label>Start (month 1–12)</label><input type="number" id="f-start" min="1" max="12" value="1"></div>
       <div class="field"><label>End (month 1–12)</label><input type="number" id="f-end" min="1" max="12" value="3"></div>
@@ -257,24 +260,36 @@ let dragSrc = null, dragCtx = null;
 let toastTimer = null;
 
 function fromRow(r) {
-  return { id:r.id, name:r.name, team:r.team, status:r.status, start:r.start_month, end:r.end_month, tp:r.team_priority, showOrg:r.show_org, op:r.org_priority };
+  return { id:r.id, name:r.name, team:r.team, status:r.status, start:r.start_month, end:r.end_month, tp:r.team_priority, showOrg:r.show_org, op:r.org_priority, owner:r.owner||'' };
 }
 function toRow(p) {
-  return { id:p.id, name:p.name, team:p.team, status:p.status, start_month:p.start, end_month:p.end, team_priority:p.tp, show_org:p.showOrg, org_priority:p.op };
+  return { id:p.id, name:p.name, team:p.team, status:p.status, start_month:p.start, end_month:p.end, team_priority:p.tp, show_org:p.showOrg, org_priority:p.op, owner:p.owner||'' };
 }
 
-async function loadProjects() {
-  showLoading();
+let lastLoaded = null;
+function updateTimestamp() {
+  var el = document.getElementById('last-updated');
+  if (!el || !lastLoaded) return;
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  el.textContent = 'Updated ' + pad(lastLoaded.getHours()) + ':' + pad(lastLoaded.getMinutes()) + ':' + pad(lastLoaded.getSeconds());
+}
+async function loadProjects(silent) {
+  if (!silent) showLoading();
   try {
-    const rows = await sb('GET', TABLE + '?order=id.asc');
+    var rows = await sb('GET', TABLE + '?order=id.asc');
     projects = (rows || []).map(fromRow);
-    nextId = projects.length ? Math.max(...projects.map(p => p.id)) + 1 : 1;
+    nextId = projects.length ? Math.max(...projects.map(function(p){ return p.id; })) + 1 : 1;
+    lastLoaded = new Date();
+    updateTimestamp();
     render();
   } catch(e) {
-    showToast('Could not connect — check the projects table exists in Supabase', true);
-    document.getElementById('main-content').innerHTML = '<div class="empty"><i class="ti ti-alert-circle"></i>Could not connect to database.<br>Make sure the <strong>projects</strong> table exists in Supabase.</div>';
+    if (!silent) {
+      showToast('Could not connect — check the projects table exists in Supabase', true);
+      document.getElementById('main-content').innerHTML = '<div class="empty"><i class="ti ti-alert-circle"></i>Could not connect to database.<br>Make sure the <strong>projects</strong> table exists in Supabase.</div>';
+    }
   }
 }
+setInterval(function(){ loadProjects(true); }, 60000);
 
 async function insertProject(p) {
   await sb('POST', TABLE, toRow(p));
@@ -321,12 +336,12 @@ function exportCSV() {
 
 function setView(v) {
   currentView = v;
-  document.querySelectorAll('.view-tab').forEach((t,i)=>t.classList.toggle('active',['gantt','team','org'][i]===v));
+  document.querySelectorAll('.view-tab').forEach((t,i)=>t.classList.toggle('active',['gantt','team','org','capacity'][i]===v));
   renderFilterBar(); render();
 }
 function renderFilterBar() {
   const bar = document.getElementById('filter-bar');
-  if (currentView==='org') { bar.innerHTML=''; return; }
+  if (currentView==='org'||currentView==='capacity') { bar.innerHTML=''; return; }
   bar.innerHTML = '<button class="team-pill '+(activeTeams.has('all')?'active':'')+'" style="'+(activeTeams.has('all')?'background:var(--wg-blue);':'')+'" onclick="toggleTeam(\'all\')">All teams</button>'
     + TEAMS.map(t=>'<button class="team-pill '+(activeTeams.has(t)?'active':'')+'" style="'+(activeTeams.has(t)?'background:'+TEAM_COLORS[t]+';':'')+'" onclick="toggleTeam(\''+t+'\')">'+TEAM_SHORT[t]+'</button>').join('');
 }
@@ -341,7 +356,8 @@ function render() {
   const el = document.getElementById('main-content');
   if (currentView==='gantt') el.innerHTML = renderGantt();
   else if (currentView==='team') el.innerHTML = renderTeam();
-  else el.innerHTML = renderOrg();
+  else if (currentView==='org') el.innerHTML = renderOrg();
+  else el.innerHTML = renderCapacity();
   attachDrag();
   const c = document.getElementById('project-count');
   if (c) c.textContent = projects.length+' project'+(projects.length!==1?'s':'');
@@ -365,8 +381,9 @@ function renderGantt() {
         h += '<div class="gantt-row" data-id="'+p.id+'" data-ctx="g-'+team+'" draggable="true">'
           +'<div class="gantt-info"><i class="ti ti-grip-vertical" style="color:var(--text-tertiary);font-size:13px;"></i>'
           +'<div class="priority-num">'+p.tp+'</div><div class="status-dot" style="background:'+STATUS_COLORS[p.status]+';"></div>'
-          +'<span class="proj-name" title="'+p.name+'">'+p.name+'</span></div>'
-          +'<div class="gantt-bars" style="height:34px;"><div class="gantt-grid">'+gc()+'</div>'
+          +'<div style="flex:1;min-width:0;"><div class="proj-name" title="'+p.name+'">'+p.name+'</div>'+(p.owner?'<div style="font-size:10px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+p.owner+'</div>':'')+'</div></div>'
+          +'<div class="gantt-bars" style="height:34px;position:relative;"><div class="gantt-grid">'+gc()+'</div>'
+          +todayMarker()
           +(function(){ var bs=barStyle(team,p.status); return '<div class="gantt-bar-wrap" style="left:'+l+'%;width:'+w+'%;background:'+bs.bg+';" onclick="openModal('+p.id+')">'
           +'<div class="gantt-bar-inner"><span class="gantt-bar-label" style="color:'+bs.color+';">'+p.name+'</span></div></div>'; })()
           +'</div></div>';
@@ -391,7 +408,7 @@ function renderTeam() {
       h += '<div class="priority-item" data-id="'+p.id+'" data-ctx="t-'+team+'" draggable="true">'
         +'<i class="ti ti-grip-vertical" style="color:var(--text-tertiary);font-size:14px;"></i>'
         +'<div class="pi-rank" style="background:'+TEAM_COLORS[team]+';">'+p.tp+'</div>'
-        +'<span class="pi-name" title="'+p.name+'">'+p.name+'</span>'
+        +'<div style="flex:1;min-width:0;"><div class="pi-name" title="'+p.name+'">'+p.name+'</div>'+(p.owner?'<div style="font-size:10px;color:var(--text-tertiary);">'+p.owner+'</div>':'')+'</div>'
         +'<span class="pi-meta">'+MONTHS[p.start-1]+'–'+MONTHS[p.end-1]+'</span>'
         +'<span class="status-badge" style="background:'+STATUS_COLORS[p.status]+'22;color:'+STATUS_COLORS[p.status]+';">'+p.status+'</span>'
         +'<div class="toggle-wrap"><span class="toggle-lbl">WMS view</span>'
@@ -413,7 +430,7 @@ function renderOrg() {
     h += '<div class="priority-item" data-id="'+p.id+'" data-ctx="org" draggable="true">'
       +'<i class="ti ti-grip-vertical" style="color:var(--text-tertiary);font-size:14px;"></i>'
       +'<div class="pi-rank" style="background:var(--wg-blue);">'+(p.op||'–')+'</div>'
-      +'<span class="pi-name" title="'+p.name+'">'+p.name+'</span>'
+      +'<div style="flex:1;min-width:0;"><div class="pi-name" title="'+p.name+'">'+p.name+'</div>'+(p.owner?'<div style="font-size:10px;color:var(--text-tertiary);">'+p.owner+'</div>':'')+'</div>'
       +'<span class="team-badge" style="background:'+TEAM_COLORS[p.team]+';">'+TEAM_SHORT[p.team]+'</span>'
       +'<span class="pi-meta">'+MONTHS[p.start-1]+'–'+MONTHS[p.end-1]+'</span>'
       +'<span class="status-badge" style="background:'+STATUS_COLORS[p.status]+'22;color:'+STATUS_COLORS[p.status]+';">'+p.status+'</span>'
@@ -489,11 +506,13 @@ function openModal(id) {
     document.getElementById('f-name').value=p.name;
     document.getElementById('f-team').value=p.team;
     document.getElementById('f-status').value=p.status;
+    document.getElementById('f-owner').value=p.owner||'';
     document.getElementById('f-start').value=p.start;
     document.getElementById('f-end').value=p.end;
   } else {
     document.getElementById('f-name').value='';
     document.getElementById('f-status').value='planned';
+    document.getElementById('f-owner').value='';
     document.getElementById('f-start').value=1;
     document.getElementById('f-end').value=3;
   }
@@ -509,6 +528,7 @@ async function saveProject() {
   if (!name) { document.getElementById('f-name').focus(); return; }
   const team=document.getElementById('f-team').value;
   const status=document.getElementById('f-status').value;
+  const owner=document.getElementById('f-owner').value.trim();
   const start=parseInt(document.getElementById('f-start').value);
   const end=parseInt(document.getElementById('f-end').value);
   if (start<1||start>12||end<start||end>12) { showToast('Check months: 1–12, end ≥ start', true); return; }
@@ -517,11 +537,11 @@ async function saveProject() {
   try {
     if (editingId) {
       const p=projects.find(x=>x.id===editingId);
-      Object.assign(p,{name,team,status,start,end});
+      Object.assign(p,{name,team,status,owner,start,end});
       await patchProject(p);
     } else {
       const mx=Math.max(0,...projects.filter(p=>p.team===team).map(p=>p.tp));
-      const np={id:nextId++,name,team,status,start,end,tp:mx+1,showOrg:false,op:null};
+      const np={id:nextId++,name,team,status,owner,start,end,tp:mx+1,showOrg:false,op:null};
       projects.push(np);
       await insertProject(np);
     }
@@ -554,6 +574,63 @@ async function doDelete() {
     if (toResave.length) await upsertMany(toResave);
     showToast('Deleted'); closeModal(); render();
   } catch(err) { showToast('Delete failed', true); }
+}
+
+function todayMarker() {
+  var now = new Date(), m = now.getMonth()+1;
+  var daysInMonth = new Date(now.getFullYear(), m, 0).getDate();
+  var pct = (((m-1) + (now.getDate()-1)/daysInMonth) / 12 * 100).toFixed(2);
+  return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:2px;background:#e74c3c;opacity:0.75;pointer-events:none;z-index:2;">'
+    +'<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9px;color:#e74c3c;white-space:nowrap;font-weight:600;background:var(--bg-primary);padding:0 2px;">today</div></div>';
+}
+
+function renderCapacity() {
+  var statusOrder = ['active','planned','on-hold','done'];
+  var statusLabel = { active:'Active', planned:'Planned', 'on-hold':'On hold', done:'Done' };
+  var statusCol   = { active:'#0081AD', planned:'#B1BA1D', 'on-hold':'#b0aead', done:'#4caf82' };
+  var now = new Date(), thisMonth = now.getMonth()+1;
+  var matrix = {};
+  TEAMS.forEach(function(t){ matrix[t]={}; for(var m=1;m<=12;m++) matrix[t][m]={active:0,planned:0,'on-hold':0,done:0}; });
+  projects.forEach(function(p){ for(var m=p.start;m<=p.end;m++){ if(matrix[p.team]&&matrix[p.team][m]) matrix[p.team][m][p.status]=(matrix[p.team][m][p.status]||0)+1; } });
+
+  var mh = MONTHS.map(function(mn,i){
+    var isNow=(i+1)===thisMonth;
+    return '<div style="flex:1;font-size:10px;color:'+(isNow?'#e74c3c':'var(--text-tertiary)')+';text-align:center;border-left:0.5px solid var(--border-light);'+(isNow?'font-weight:600;':'')+'">'+mn+'</div>';
+  }).join('');
+
+  var h = '<div style="overflow-x:auto;"><div style="min-width:800px;">'
+    +'<div style="display:flex;align-items:center;border-bottom:0.5px solid var(--border-light);margin-bottom:6px;padding-bottom:4px;">'
+    +'<div style="width:180px;flex-shrink:0;font-size:11px;color:var(--text-tertiary);padding:0 8px;">Team</div>'
+    +'<div style="display:flex;flex:1;">'+mh+'</div></div>';
+
+  TEAMS.forEach(function(team){
+    var row = matrix[team];
+    var cells = MONTHS.map(function(_,i){
+      var m=i+1, counts=row[m], isNow=m===thisMonth;
+      var total=Object.values(counts).reduce(function(a,b){return a+b;},0);
+      if(!total) return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;'+(isNow?'background:rgba(231,76,60,0.05);':'')+'"></div>';
+      var bars=statusOrder.filter(function(s){return counts[s]>0;}).map(function(s){
+        var pct=(counts[s]/total*100).toFixed(1);
+        return '<div title="'+counts[s]+' '+statusLabel[s]+'" style="width:'+pct+'%;background:'+statusCol[s]+';height:100%;"></div>';
+      }).join('');
+      return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;display:flex;align-items:stretch;padding:5px 3px;'+(isNow?'background:rgba(231,76,60,0.05);':'')+'"><div style="display:flex;width:100%;border-radius:3px;overflow:hidden;" title="'+total+' project'+(total!==1?'s':'')+' in '+MONTHS[i]+'">'+bars+'</div></div>';
+    }).join('');
+    h += '<div style="display:flex;align-items:center;margin-bottom:3px;border-radius:var(--radius-md);transition:background 0.1s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">'
+      +'<div style="width:180px;flex-shrink:0;padding:6px 8px;display:flex;align-items:center;gap:6px;">'
+      +'<div style="width:9px;height:9px;border-radius:2px;background:'+TEAM_COLORS[team]+';flex-shrink:0;"></div>'
+      +'<span style="font-size:11px;font-weight:600;color:'+TEAM_COLORS[team]+';">'+team+'</span></div>'
+      +'<div style="display:flex;flex:1;">'+cells+'</div></div>';
+  });
+
+  h += '<div style="display:flex;gap:14px;margin-top:14px;padding-top:10px;border-top:0.5px solid var(--border-light);flex-wrap:wrap;">';
+  statusOrder.forEach(function(s){
+    h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);">'
+      +'<div style="width:12px;height:12px;border-radius:2px;background:'+statusCol[s]+';"></div>'+statusLabel[s]+'</div>';
+  });
+  h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);margin-left:auto;">'
+    +'<div style="width:2px;height:12px;background:#e74c3c;border-radius:1px;"></div>Current month</div>';
+  h += '</div></div></div>';
+  return h;
 }
 
 renderFilterBar();
