@@ -268,17 +268,17 @@ function toRow(p) {
 
 let lastLoaded = null;
 function updateTimestamp() {
-  var el = document.getElementById('last-updated');
+  const el = document.getElementById('last-updated');
   if (!el || !lastLoaded) return;
-  var pad = function(n){ return String(n).padStart(2,'0'); };
+  const pad = n => String(n).padStart(2,'0');
   el.textContent = 'Updated ' + pad(lastLoaded.getHours()) + ':' + pad(lastLoaded.getMinutes()) + ':' + pad(lastLoaded.getSeconds());
 }
 async function loadProjects(silent) {
   if (!silent) showLoading();
   try {
-    var rows = await sb('GET', TABLE + '?order=id.asc');
+    const rows = await sb('GET', TABLE + '?order=id.asc');
     projects = (rows || []).map(fromRow);
-    nextId = projects.length ? Math.max(...projects.map(function(p){ return p.id; })) + 1 : 1;
+    nextId = projects.length ? Math.max(...projects.map(p => p.id)) + 1 : 1;
     lastLoaded = new Date();
     updateTimestamp();
     render();
@@ -323,8 +323,8 @@ function showToast(msg, isError) {
 function exportCSV() {
   if (!projects.length) { showToast('No projects to export'); return; }
   const headers = ['Name','Team','Status','Start Month','End Month','Start Label','End Label','Team Priority','On WMS View','WMS Priority'];
-  const rows = projects.map(p => ['"'+p.name.replace(/"/g,'""')+'"','"'+p.team+'"',p.status,p.start,p.end,MONTHS[p.start-1],MONTHS[p.end-1],p.tp,p.showOrg?'Yes':'No',p.op||'']);
-  const csv = [headers.join(','),...rows.map(r=>r.join(','))].join('\n');
+  const rows = projects.map(function(p){ return ['"'+p.name.replace(/"/g,'""')+'"', '"'+p.team+'"', p.status, p.start, p.end, MONTHS[p.start-1], MONTHS[p.end-1], p.tp, p.showOrg?'Yes':'No', p.op||'']; });
+  const csv = [headers.join(","),...rows.map(function(r){return r.join(",");})].join("\n");
   const blob = new Blob([csv],{type:'text/csv'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -577,61 +577,83 @@ async function doDelete() {
 }
 
 function todayMarker() {
-  var now = new Date(), m = now.getMonth()+1;
-  var daysInMonth = new Date(now.getFullYear(), m, 0).getDate();
-  var pct = (((m-1) + (now.getDate()-1)/daysInMonth) / 12 * 100).toFixed(2);
+  const now = new Date(), m = now.getMonth()+1;
+  const daysInMonth = new Date(now.getFullYear(), m, 0).getDate();
+  const pct = (((m-1) + (now.getDate()-1)/daysInMonth) / 12 * 100).toFixed(2);
   return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:2px;background:#e74c3c;opacity:0.75;pointer-events:none;z-index:2;">'
     +'<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9px;color:#e74c3c;white-space:nowrap;font-weight:600;background:var(--bg-primary);padding:0 2px;">today</div></div>';
 }
 
 function renderCapacity() {
   var statusOrder = ['active','planned','on-hold','done'];
-  var statusLabel = { active:'Active', planned:'Planned', 'on-hold':'On hold', done:'Done' };
-  var statusCol   = { active:'#0081AD', planned:'#B1BA1D', 'on-hold':'#b0aead', done:'#4caf82' };
+  var statusLabel = {active:'Active',planned:'Planned','on-hold':'On hold',done:'Done'};
+  var statusCol = {active:'#0081AD',planned:'#B1BA1D','on-hold':'#b0aead',done:'#4caf82'};
   var now = new Date(), thisMonth = now.getMonth()+1;
   var matrix = {};
-  TEAMS.forEach(function(t){ matrix[t]={}; for(var m=1;m<=12;m++) matrix[t][m]={active:0,planned:0,'on-hold':0,done:0}; });
-  projects.forEach(function(p){ for(var m=p.start;m<=p.end;m++){ if(matrix[p.team]&&matrix[p.team][m]) matrix[p.team][m][p.status]=(matrix[p.team][m][p.status]||0)+1; } });
+  TEAMS.forEach(function(t) {
+    matrix[t] = {};
+    for (var m=1; m<=12; m++) matrix[t][m] = {active:0,planned:0,'on-hold':0,done:0};
+  });
+  projects.forEach(function(p) {
+    for (var m=p.start; m<=p.end; m++) {
+      if (matrix[p.team] && matrix[p.team][m]) {
+        matrix[p.team][m][p.status] = (matrix[p.team][m][p.status]||0) + 1;
+      }
+    }
+  });
 
-  var mh = MONTHS.map(function(mn,i){
-    var isNow=(i+1)===thisMonth;
-    return '<div style="flex:1;font-size:10px;color:'+(isNow?'#e74c3c':'var(--text-tertiary)')+';text-align:center;border-left:0.5px solid var(--border-light);'+(isNow?'font-weight:600;':'')+'">'+mn+'</div>';
+  var mh = MONTHS.map(function(mn, i) {
+    var isNow = (i+1) === thisMonth;
+    var col = isNow ? '#e74c3c' : 'var(--text-tertiary)';
+    var fw = isNow ? 'font-weight:600;' : '';
+    return '<div style="flex:1;font-size:10px;color:'+col+';text-align:center;border-left:0.5px solid var(--border-light);'+fw+'">'+mn+'</div>';
   }).join('');
 
-  var h = '<div style="overflow-x:auto;"><div style="min-width:800px;">'
-    +'<div style="display:flex;align-items:center;border-bottom:0.5px solid var(--border-light);margin-bottom:6px;padding-bottom:4px;">'
-    +'<div style="width:180px;flex-shrink:0;font-size:11px;color:var(--text-tertiary);padding:0 8px;">Team</div>'
-    +'<div style="display:flex;flex:1;">'+mh+'</div></div>';
+  var h = '<div style="overflow-x:auto;"><div style="min-width:800px;">';
+  h += '<div style="display:flex;align-items:center;border-bottom:0.5px solid var(--border-light);margin-bottom:6px;padding-bottom:4px;">';
+  h += '<div style="width:180px;flex-shrink:0;font-size:11px;color:var(--text-tertiary);padding:0 8px;">Team</div>';
+  h += '<div style="display:flex;flex:1;">'+mh+'</div></div>';
 
-  TEAMS.forEach(function(team){
+  TEAMS.forEach(function(team) {
     var row = matrix[team];
-    var cells = MONTHS.map(function(_,i){
-      var m=i+1, counts=row[m], isNow=m===thisMonth;
-      var total=Object.values(counts).reduce(function(a,b){return a+b;},0);
-      if(!total) return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;'+(isNow?'background:rgba(231,76,60,0.05);':'')+'"></div>';
-      var bars=statusOrder.filter(function(s){return counts[s]>0;}).map(function(s){
-        var pct=(counts[s]/total*100).toFixed(1);
-        return '<div title="'+counts[s]+' '+statusLabel[s]+'" style="width:'+pct+'%;background:'+statusCol[s]+';height:100%;"></div>';
-      }).join('');
-      return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;display:flex;align-items:stretch;padding:5px 3px;'+(isNow?'background:rgba(231,76,60,0.05);':'')+'"><div style="display:flex;width:100%;border-radius:3px;overflow:hidden;" title="'+total+' project'+(total!==1?'s':'')+' in '+MONTHS[i]+'">'+bars+'</div></div>';
+    var cells = MONTHS.map(function(_, i) {
+      var m = i+1;
+      var counts = row[m];
+      var isNow = m === thisMonth;
+      var nowBg = isNow ? 'background:rgba(231,76,60,0.05);' : '';
+      var total = 0;
+      statusOrder.forEach(function(s){ total += counts[s]||0; });
+      if (!total) {
+        return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;'+nowBg+'"></div>';
+      }
+      var bars = '';
+      statusOrder.forEach(function(s) {
+        if (!counts[s]) return;
+        var pct = (counts[s]/total*100).toFixed(1);
+        bars += '<div title="'+counts[s]+' '+statusLabel[s]+'" style="width:'+pct+'%;background:'+statusCol[s]+';height:100%;"></div>';
+      });
+      return '<div style="flex:1;border-left:0.5px solid var(--border-light);height:36px;display:flex;align-items:stretch;padding:5px 3px;'+nowBg+'">'
+        +'<div style="display:flex;width:100%;border-radius:3px;overflow:hidden;" title="'+total+' project'+(total!==1?'s':'')+' in '+MONTHS[i]+'">'+bars+'</div></div>';
     }).join('');
-    h += '<div style="display:flex;align-items:center;margin-bottom:3px;border-radius:var(--radius-md);transition:background 0.1s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">'
-      +'<div style="width:180px;flex-shrink:0;padding:6px 8px;display:flex;align-items:center;gap:6px;">'
-      +'<div style="width:9px;height:9px;border-radius:2px;background:'+TEAM_COLORS[team]+';flex-shrink:0;"></div>'
-      +'<span style="font-size:11px;font-weight:600;color:'+TEAM_COLORS[team]+';">'+team+'</span></div>'
-      +'<div style="display:flex;flex:1;">'+cells+'</div></div>';
+
+    h += '<div style="display:flex;align-items:center;margin-bottom:3px;border-radius:var(--radius-md);transition:background 0.1s;" onmouseover="this.style.background=\'var(--bg-secondary)\'" onmouseout="this.style.background=\'\'">'; 
+    h += '<div style="width:180px;flex-shrink:0;padding:6px 8px;display:flex;align-items:center;gap:6px;">';
+    h += '<div style="width:9px;height:9px;border-radius:2px;background:'+TEAM_COLORS[team]+';flex-shrink:0;"></div>';
+    h += '<span style="font-size:11px;font-weight:600;color:'+TEAM_COLORS[team]+';">'+team+'</span></div>';
+    h += '<div style="display:flex;flex:1;">'+cells+'</div></div>';
   });
 
   h += '<div style="display:flex;gap:14px;margin-top:14px;padding-top:10px;border-top:0.5px solid var(--border-light);flex-wrap:wrap;">';
-  statusOrder.forEach(function(s){
-    h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);">'
-      +'<div style="width:12px;height:12px;border-radius:2px;background:'+statusCol[s]+';"></div>'+statusLabel[s]+'</div>';
+  statusOrder.forEach(function(s) {
+    h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);">';
+    h += '<div style="width:12px;height:12px;border-radius:2px;background:'+statusCol[s]+';"></div>'+statusLabel[s]+'</div>';
   });
-  h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);margin-left:auto;">'
-    +'<div style="width:2px;height:12px;background:#e74c3c;border-radius:1px;"></div>Current month</div>';
+  h += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);margin-left:auto;">';
+  h += '<div style="width:2px;height:12px;background:#e74c3c;border-radius:1px;"></div>Current month</div>';
   h += '</div></div></div>';
   return h;
 }
+
 
 renderFilterBar();
 loadProjects();
