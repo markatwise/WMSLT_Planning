@@ -24,6 +24,16 @@
       }
     }
     body { font-family: var(--font); font-size: 14px; color: var(--text-primary); background: var(--bg-tertiary); min-height: 100vh; }
+    @media (min-resolution: 150dpi), (-webkit-min-device-pixel-ratio: 1.5) {
+      body { font-size: 16px; }
+      .gantt-month { font-size: 12px; }
+      .gantt-bar-label { font-size: 12px; }
+      .priority-num { width: 20px; height: 20px; font-size: 12px; }
+      .status-dot { width: 9px; height: 9px; }
+      .team-pill { font-size: 13px; padding: 5px 12px; }
+      .view-tab { font-size: 13px; padding: 6px 14px; }
+      .btn { font-size: 13px; }
+    }
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px 48px; }
     .site-header { display: flex; align-items: center; gap: 12px; padding: 20px 0 18px; border-bottom: 0.5px solid var(--border-mid); margin-bottom: 20px; }
     .logo-mark { width: 36px; height: 36px; background: var(--wg-blue); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -580,8 +590,7 @@ function todayMarker() {
   const now = new Date(), m = now.getMonth()+1;
   const daysInMonth = new Date(now.getFullYear(), m, 0).getDate();
   const pct = (((m-1) + (now.getDate()-1)/daysInMonth) / 12 * 100).toFixed(2);
-  return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:2px;background:#e74c3c;opacity:0.75;pointer-events:none;z-index:2;">'
-    +'<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9px;color:#e74c3c;white-space:nowrap;font-weight:600;background:var(--bg-primary);padding:0 2px;">today</div></div>';
+  return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:1.5px;background:#e74c3c;opacity:0.6;pointer-events:none;z-index:2;"></div>';
 }
 
 function renderCapacity() {
