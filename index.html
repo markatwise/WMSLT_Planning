@@ -581,7 +581,7 @@ function todayMarker() {
   const now = new Date(), m = now.getMonth()+1;
   const daysInMonth = new Date(now.getFullYear(), m, 0).getDate();
   const pct = (((m-1) + (now.getDate()-1)/daysInMonth) / 12 * 100).toFixed(2);
-  return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:1.5px;background:#e74c3c;opacity:0.6;pointer-events:none;z-index:2;"></div>';
+  return '<div style="position:absolute;top:0;bottom:0;left:'+pct+'%;width:2px;background:#f08080;opacity:0.5;pointer-events:none;z-index:2;"></div>';
 }
 
 function renderCapacity() {
@@ -659,12 +659,23 @@ function applyScaling() {
   // Use raw screen width — most reliable on 4K regardless of OS scaling
   var sw = window.screen.width;
   var scale = 1;
-  if (sw >= 3840) scale = 1.8;      // 4K
-  else if (sw >= 2560) scale = 1.4; // QHD / 2.5K
+  if (sw >= 3840) scale = 2.2;      // 4K
+  else if (sw >= 2560) scale = 1.5; // QHD / 2.5K
   else if (sw >= 1920) scale = 1;   // 1080p — no change
   if (scale > 1) {
     document.documentElement.style.fontSize = Math.round(14 * scale) + 'px';
     document.querySelector('.page-wrap').style.maxWidth = Math.round(1100 * scale) + 'px';
+    // Also scale up fixed-width elements that don't use rem
+    var style = document.createElement('style');
+    style.textContent = [
+      '.gantt-info, .gantt-label-col { width: ' + Math.round(240 * scale) + 'px !important; }',
+      '.priority-item { padding: ' + Math.round(8*scale) + 'px ' + Math.round(12*scale) + 'px !important; }',
+      '.gantt-row { min-height: ' + Math.round(34*scale) + 'px !important; }',
+      '.gantt-bar-wrap { top: ' + Math.round(5*scale) + 'px !important; bottom: ' + Math.round(5*scale) + 'px !important; }',
+      '.pi-rank { width: ' + Math.round(22*scale) + 'px !important; height: ' + Math.round(22*scale) + 'px !important; }',
+      '.status-dot { width: ' + Math.round(7*scale) + 'px !important; height: ' + Math.round(7*scale) + 'px !important; }',
+    ].join('\n');
+    document.head.appendChild(style);
   }
 }
 applyScaling();
