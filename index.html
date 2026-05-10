@@ -24,16 +24,7 @@
       }
     }
     body { font-family: var(--font); font-size: 14px; color: var(--text-primary); background: var(--bg-tertiary); min-height: 100vh; }
-    @media (min-resolution: 150dpi), (-webkit-min-device-pixel-ratio: 1.5) {
-      body { font-size: 16px; }
-      .gantt-month { font-size: 12px; }
-      .gantt-bar-label { font-size: 12px; }
-      .priority-num { width: 20px; height: 20px; font-size: 12px; }
-      .status-dot { width: 9px; height: 9px; }
-      .team-pill { font-size: 13px; padding: 5px 12px; }
-      .view-tab { font-size: 13px; padding: 6px 14px; }
-      .btn { font-size: 13px; }
-    }
+
     .page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px 48px; }
     .site-header { display: flex; align-items: center; gap: 12px; padding: 20px 0 18px; border-bottom: 0.5px solid var(--border-mid); margin-bottom: 20px; }
     .logo-mark { width: 36px; height: 36px; background: var(--wg-blue); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -663,6 +654,20 @@ function renderCapacity() {
   return h;
 }
 
+
+function applyScaling() {
+  var w = window.screen.width * window.devicePixelRatio;
+  var scale = 1;
+  if (w >= 7680) scale = 2.5;       // 8K
+  else if (w >= 5120) scale = 2.0;  // 5K
+  else if (w >= 3840) scale = 1.6;  // 4K
+  else if (w >= 2560) scale = 1.25; // 2.5K / QHD
+  if (scale > 1) {
+    document.documentElement.style.fontSize = (14 * scale) + 'px';
+    document.querySelector('.page-wrap').style.maxWidth = Math.round(1100 * scale) + 'px';
+  }
+}
+applyScaling();
 
 renderFilterBar();
 loadProjects();
